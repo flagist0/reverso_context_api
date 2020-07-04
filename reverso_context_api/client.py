@@ -17,7 +17,7 @@ class ReversoException(Exception):
         self.context = context
 
 
-class ReversoSession(requests.Session):
+class _ReversoSession(requests.Session):
     """Customize request params and response validation"""
     def __init__(self, user_agent=None):
         super().__init__()
@@ -53,7 +53,7 @@ class Client(object):
         """
         self._source_lang, self._target_lang = source_lang, target_lang
         self._login, self._password = credentials
-        self._session = ReversoSession(user_agent=user_agent)
+        self._session = _ReversoSession(user_agent=user_agent)
 
     def get_translations(self, text, source_lang=None, target_lang=None):
         """Yields found translations of word (without context)
@@ -81,7 +81,7 @@ class Client(object):
           'Der Ridge Walk und verschiedene Mountainbikestrecken sind von der <em>Weinkellerei</em> aus zugänglich.')]
 
         :param target_text: if there are many translations of passed text (see get_translations), with this parameter
-                            you can narrow the search to one passed translation
+                            you can narrow the sample search down to one passed translation
         :param cleanup: Remove <em>...</em> around requested part and its translation
 
         Based on example from get_translations: get first sample where 'braucht' was translated as 'required':
