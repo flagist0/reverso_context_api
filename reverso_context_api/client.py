@@ -42,7 +42,7 @@ class ReversoSession(requests.Session):
 class Client(object):
     def __init__(self, source_lang, target_lang, credentials=(None, None), user_agent=None):
         """
-        Language can be redefined for api calls
+        Language can be redefined in api calls
         :param source_lang: Default source language
         :param target_lang: Default target language
         :param credentials: Optional login and password
@@ -52,7 +52,36 @@ class Client(object):
         self._login, self._password = credentials
         self._session = ReversoSession(user_agent=user_agent)
 
-    def get_suggestions(self, text, source_lang=None, target_lang=None, with_fuzzy=False):
+    def get_translations(self, text, source_lang=None, target_lang=None):
+        """Yields found translations of word (without context)
+        For example:
+        >>> list(Client("de", "en").get_translations("braucht"))
+        ['needed', 'required', 'need', 'takes', 'requires', 'take', 'necessary'...]
+        """
+        data = {
+            "source_lang": source_lang or self._source_lang,
+            "target_lang": target_lang or self._target_lang,
+            "mode": 0,
+            "npage": 1,
+            "source_text": text,
+            "target_text": ""
+        }
+        r = self._session.json_request("POST", BASE_URL + "bst-query-service", data)
+
+        content = r.json()
+        for entry in content["dictionary_entry_list"]:
+            yield entry["term"]
+
+    def get_suggestions(self, text, source_lang=None, target_lang=None, fuzzy_search=False, cleanup=True):
+        """
+        Yields search suggestions for passed text
+        For example:
+        >>> list(Client("de", "en").get_suggestions("bew")))
+        ['Bewertung', 'Bewegung', 'bewegen', 'bewegt', 'bewusst', 'bewirkt', 'bewertet'...]
+
+        :param fuzzy_search: Allow fuzzy search (can find suggestions for words with typos: entzwickl -> Entwickler)
+        :param cleanup: Remove <b>...</b> around requested part in each suggestion
+        """
         data = {
             "search": text,
             "source_lang": source_lang or self._source_lang,
@@ -61,17 +90,20 @@ class Client(object):
         r = self._session.json_request("POST", BASE_URL + "bst-suggest-service", data)
 
         parts = ["suggestions"]
-        if with_fuzzy:
+        if fuzzy_search:
             parts += ["fuzzy1", "fuzzy2"]
 
         contents = r.json()
         for part in parts:
             for term in contents[part]:
                 suggestion = term["suggestion"]
+
+                if cleanup:
+                    suggestion = suggestion.replace("<b>", "").replace("</b>", "")
+
                 yield suggestion
 
 
 if __name__ == "__main__":
-    c = Client("de", "ru")
-    for suggestion in c.get_suggestions("we"):
-        print(suggestion)
+    c = Client("de", "en")
+    print(list(Client("de", "en").get_suggestions("entzwickl", fuzzy_search=True)))
