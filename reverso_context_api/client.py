@@ -58,15 +58,7 @@ class Client(object):
         >>> list(Client("de", "en").get_translations("braucht"))
         ['needed', 'required', 'need', 'takes', 'requires', 'take', 'necessary'...]
         """
-        data = {
-            "source_lang": source_lang or self._source_lang,
-            "target_lang": target_lang or self._target_lang,
-            "mode": 0,
-            "npage": 1,
-            "source_text": text,
-            "target_text": ""
-        }
-        r = self._session.json_request("POST", BASE_URL + "bst-query-service", data)
+        r = self._request_translations(text, source_lang, target_lang)
 
         content = r.json()
         for entry in content["dictionary_entry_list"]:
@@ -82,13 +74,7 @@ class Client(object):
         :param fuzzy_search: Allow fuzzy search (can find suggestions for words with typos: entzwickl -> Entwickler)
         :param cleanup: Remove <b>...</b> around requested part in each suggestion
         """
-        data = {
-            "search": text,
-            "source_lang": source_lang or self._source_lang,
-            "target_lang": target_lang or self._target_lang
-        }
-        r = self._session.json_request("POST", BASE_URL + "bst-suggest-service", data)
-
+        r = self._request_suggestions(text, source_lang, target_lang)
         parts = ["suggestions"]
         if fuzzy_search:
             parts += ["fuzzy1", "fuzzy2"]
@@ -102,6 +88,27 @@ class Client(object):
                     suggestion = suggestion.replace("<b>", "").replace("</b>", "")
 
                 yield suggestion
+
+    def _request_translations(self, text, source_lang, target_lang, target_text=None, page_num=1):
+        data = {
+            "source_lang": source_lang or self._source_lang,
+            "target_lang": target_lang or self._target_lang,
+            "mode": 0,
+            "npage": page_num,
+            "source_text": text,
+            "target_text": target_text or "",
+        }
+        r = self._session.json_request("POST", BASE_URL + "bst-query-service", data)
+        return r
+
+    def _request_suggestions(self, text, source_lang, target_lang):
+        data = {
+            "search": text,
+            "source_lang": source_lang or self._source_lang,
+            "target_lang": target_lang or self._target_lang
+        }
+        r = self._session.json_request("POST", BASE_URL + "bst-suggest-service", data)
+        return r
 
 
 if __name__ == "__main__":
