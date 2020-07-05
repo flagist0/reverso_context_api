@@ -1,5 +1,6 @@
 import re
 import requests
+from bs4 import BeautifulSoup
 
 BASE_URL = "https://context.reverso.net/"
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:77.0) Gecko/20100101 Firefox/77.0"
@@ -19,12 +20,14 @@ class ReversoException(Exception):
 
 class _ReversoSession(requests.Session):
     """Customize request params and response validation"""
-    def __init__(self, user_agent=None):
+    def __init__(self, credentials=None, user_agent=None):
         super().__init__()
         self.headers["User-Agent"] = user_agent or DEFAULT_USER_AGENT
         self.timeout = DEFAULT_TIMEOUT
         for header, val in REQUEST_DEFAULT_HEADERS.items():
             self.headers[header] = val
+        if credentials:
+            self._login(*credentials)
 
     def request(self, method, url, **kwargs):
         r = super().request(method, url, **kwargs)
@@ -39,21 +42,66 @@ class _ReversoSession(requests.Session):
             raise ReversoException(contents["error"], response=r)
         return r
 
+    def _login(self, email, password):
+        login_url = "https://account.reverso.net/Account/Login"
+        request_verification_token = self._get_request_validation_token(login_url)
+
+        antiforgery_cookie = self.cookies.get("Reverso.Account.Antiforgery")
+        if not antiforgery_cookie:
+            raise ReversoException("Could not log in: cannot retrieve antiforgery cookie")
+
+        self.post(
+            login_url,
+            params={"returnUrl": "https://context.reverso.net/"},
+            data={
+                "Email": email,
+                "Password": password,
+                "RememberMe": "true",
+                "__RequestVerificationToken": request_verification_token
+            },
+            headers={
+                "content-type": "application/x-www-form-urlencoded",
+                "authority": "https://account.reverso.net",
+                "origin": "https://account.reverso.net",
+                "referer": login_url,
+                "sec-fetch-site": "same-origin",
+                "sec-fetch-mode": "navigate",
+                "sec-fetch-user": "?1",
+                "sec-fetch-dest": "document",
+                "X-Requested-With": None,
+                "Accept-Encoding": None,
+                "Connection": None,
+                "Content-Length": None,
+            })
+
+    def _get_request_validation_token(self, login_url):
+        r = self.get(
+            login_url,
+            params={
+                "returnUrl": "https://context.reverso.net/",
+                "lang": "en"
+            })
+
+        soup = BeautifulSoup(r.text, features="html.parser")
+        token_tag = soup.find("input", attrs=dict(name="__RequestVerificationToken", type="hidden"))
+        if token_tag is None:
+            raise ReversoException("Cannot find __RequestVerificationToken in login page", soup=soup)
+        return token_tag.attrs["value"]
+
 
 class Client(object):
-    def __init__(self, source_lang, target_lang, credentials=(None, None), user_agent=None):
+    def __init__(self, source_lang, target_lang, credentials=None, user_agent=None):
         """
         Simple client for Reverso Context
 
         Language can be redefined in api calls
         :param source_lang: Default source language
         :param target_lang: Default target language
-        :param credentials: Optional login and password
-        :param user_agent: User agent string that will be used for API calls
+        :param credentials: Optional login information: pair of (email, password)
+        :param user_agent: Optional user agent string that will be used during API calls
         """
         self._source_lang, self._target_lang = source_lang, target_lang
-        self._login, self._password = credentials
-        self._session = _ReversoSession(user_agent=user_agent)
+        self._session = _ReversoSession(credentials=credentials, user_agent=user_agent)
 
     def get_translations(self, text, source_lang=None, target_lang=None):
         """Yields found translations of word (without context)
@@ -157,6 +205,4 @@ class Client(object):
         """Remove html tags like <b>...</b> or <em>...</em> from text
         I'm well aware that generally it's a felony, but in this case tags cannot even overlap
         """
-        html_tag_re = re.compile(r"<.*?>")
-        text = re.sub(html_tag_re, "", text)
-        return text
+        return re.sub(r"<.*?>", "", text)
