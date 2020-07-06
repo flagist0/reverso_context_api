@@ -78,7 +78,7 @@ class Client(object):
         """
         Yields search suggestions for passed text
 
-        >>> list(Client("de", "en").get_search_suggestions("bew")))
+        >>> list(Client("de", "en").get_search_suggestions("bew"))
         ['Bewertung', 'Bewegung', 'bewegen', 'bewegt', 'bewusst', 'bewirkt', 'bewertet'...]
 
         :param fuzzy_search: Allow fuzzy search (can find suggestions for words with typos: entzwickl -> Entwickler)
