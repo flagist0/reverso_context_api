@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from reverso_context_api.misc import ReversoException
 
 LOGIN_URL = "https://account.reverso.net/Account/Login"
+RETURN_URL = "https://context.reverso.net/translation/"
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:77.0) Gecko/20100101 Firefox/77.0"
 DEFAULT_TIMEOUT = 5
 
@@ -57,10 +58,10 @@ class ReversoSession(requests.Session):
 
     def _request_login(self, request_verification_token):
         email, password = self._credentials
-        self.post(
+        r = self.post(
             LOGIN_URL,
             params={
-                "returnUrl": "https://context.reverso.net/"},
+                "returnUrl": RETURN_URL},
             data={
                 "Email": email,
                 "Password": password,
@@ -81,12 +82,14 @@ class ReversoSession(requests.Session):
                 "Connection": None,
                 "Content-Length": None,
             })
+        if r.url != RETURN_URL:
+            raise ReversoException("Could not login, please check your credentials")
 
     def _get_request_validation_token(self):
         r = self.get(
             LOGIN_URL,
             params={
-                "returnUrl": "https://context.reverso.net/",
+                "returnUrl": RETURN_URL,
                 "lang": "en"
             })
 
