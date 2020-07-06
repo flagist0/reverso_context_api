@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 
 from reverso_context_api.misc import ReversoException
 
+LOGIN_URL = "https://account.reverso.net/Account/Login"
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:77.0) Gecko/20100101 Firefox/77.0"
 DEFAULT_TIMEOUT = 5
 
@@ -21,15 +22,16 @@ class ReversoSession(requests.Session):
         self.timeout = DEFAULT_TIMEOUT
         for header, val in REQUEST_DEFAULT_HEADERS.items():
             self.headers[header] = val
-        if credentials:
-            self._login(*credentials)
+
+        self._credentials = credentials
+        self.logged_in = False
 
     def request(self, method, url, **kwargs):
         r = super().request(method, url, **kwargs)
         r.raise_for_status()
         return r
 
-    def json_request(self, method, url, data, **kwargs):
+    def json_request(self, method, url, data=None, **kwargs):
         r = self.request(method, url, json=data, **kwargs)
 
         contents = r.json()
@@ -37,17 +39,28 @@ class ReversoSession(requests.Session):
             raise ReversoException(contents["error"], response=r)
         return r
 
-    def _login(self, email, password):
-        login_url = "https://account.reverso.net/Account/Login"
-        request_verification_token = self._get_request_validation_token(login_url)
+    def login(self):
+        if self._credentials is None:
+            raise ReversoException("You have to set credentials to be able to log in")
+
+        if self.logged_in:
+            return
+
+        request_verification_token = self._get_request_validation_token()
 
         antiforgery_cookie = self.cookies.get("Reverso.Account.Antiforgery")
         if not antiforgery_cookie:
             raise ReversoException("Could not log in: cannot retrieve antiforgery cookie")
 
+        self._request_login(request_verification_token)
+        self.logged_in = True
+
+    def _request_login(self, request_verification_token):
+        email, password = self._credentials
         self.post(
-            login_url,
-            params={"returnUrl": "https://context.reverso.net/"},
+            LOGIN_URL,
+            params={
+                "returnUrl": "https://context.reverso.net/"},
             data={
                 "Email": email,
                 "Password": password,
@@ -58,7 +71,7 @@ class ReversoSession(requests.Session):
                 "content-type": "application/x-www-form-urlencoded",
                 "authority": "https://account.reverso.net",
                 "origin": "https://account.reverso.net",
-                "referer": login_url,
+                "referer": LOGIN_URL,
                 "sec-fetch-site": "same-origin",
                 "sec-fetch-mode": "navigate",
                 "sec-fetch-user": "?1",
@@ -69,9 +82,9 @@ class ReversoSession(requests.Session):
                 "Content-Length": None,
             })
 
-    def _get_request_validation_token(self, login_url):
+    def _get_request_validation_token(self):
         r = self.get(
-            login_url,
+            LOGIN_URL,
             params={
                 "returnUrl": "https://context.reverso.net/",
                 "lang": "en"
