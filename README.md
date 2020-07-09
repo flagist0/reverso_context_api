@@ -1,6 +1,9 @@
 # reverso_context_api
 Simple Python wrapper for Reverso Context API
 
+## Installation
+```pip install reverso-context-api```
+
 ## Entry point
 All operations are implemented in class `Client`.     
 ```python3
