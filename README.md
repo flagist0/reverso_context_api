@@ -1,5 +1,5 @@
 # reverso_context_api
-Simple Python wrapper for Reverso Context API
+Simple Python API for [Reverso Context](https://context.reverso.net)
 
 ## Installation
 ```pip install reverso-context-api```
@@ -49,4 +49,4 @@ client = Client("en", "ru", credentials=("email", "password"))
  'target_lang': 'ru', 'target_text': 'способен', 'target_context': 'Я бы посмеялся, но мой вид на это не способен.'}
 ```
 
-All the methods return iterators
+All the methods return iterators (to hide paging and to not request more results than needed)
