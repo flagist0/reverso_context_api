@@ -4,7 +4,7 @@ from reverso_context_api.misc import BASE_URL
 from reverso_context_api.session import ReversoSession
 
 FAVORITES_PAGE_SIZE = 50
-
+HISTORY_PAGE_SIZE = 50
 
 class Client(object):
     def __init__(self, source_lang, target_lang, credentials=None, user_agent=None):
@@ -74,6 +74,17 @@ class Client(object):
             for entry in page["results"]:
                 yield self._process_fav_entry(entry, cleanup)
 
+    def get_history(self, source_lang=None, target_lang=None):
+        """
+        Yields your search history (you have to provide login credentials to Client to use it)
+        :param source_lang: string of lang abbreviations separated by comma
+        :param target_lang: same as source_lang
+        :return: dict of sample attrs (source/target lang/text)
+        """
+        for page in self._history_pager(source_lang, target_lang):
+            for entry in page["results"]:
+                yield self._process_history_entry(entry, cleanup)
+
     def get_search_suggestions(self, text, source_lang=None, target_lang=None, fuzzy_search=False, cleanup=True):
         """
         Yields search suggestions for passed text
@@ -124,6 +135,22 @@ class Client(object):
             if start >= total:
                 break
 
+    def _history_pager(self, source_lang=None, target_lang=None):
+        source_lang = source_lang or self._source_lang
+        target_lang = target_lang or self._target_lang
+
+        self._session.login()
+
+        start, total = 0, None
+        while True:
+            r = self._request_history(source_lang, target_lang, start)
+            contents = r.json()
+            total = contents["numTotalResults"]
+            yield contents
+            start += HISTORY_PAGE_SIZE
+            if start >= total:
+                break
+
     def _request_translations(self, text, source_lang, target_lang, target_text=None, page_num=None):
         # defaults are set here because this method can be called both directly and via pager
         target_text = target_text or ""
@@ -151,6 +178,17 @@ class Client(object):
         r = self._session.json_request("GET", BASE_URL + "bst-web-user/user/favourites", params=params)
         return r
 
+    def _request_history(self, source_lang, target_lang, start):
+        params = {
+            "sourceLang": source_lang,
+            "targetLang": target_lang,
+            "start": start,
+            "length": HISTORY_PAGE_SIZE,
+            "order": 10 
+        }
+        r = self._session.json_request("GET", BASE_URL + "bst-web-user/user/history", params=params)
+        return r
+
     def _request_suggestions(self, text, source_lang, target_lang):
         data = {
             "search": text,
@@ -176,6 +214,21 @@ class Client(object):
             val = entry[field_from]
             if cleanup and field_from in fields_to_clean:
                 val = self._cleanup_html_tags(val)
+            processed_entry[field_to] = val
+        return processed_entry
+
+    def _process_history_entry(self, entry, cleanup):
+        entry_fields_map = {
+            "srcLang": "source_lang",
+            "srcText": "source_text",
+            "trgLang": "target_lang",
+            "translation1": "translation_1",
+            "translation2": "translation_2"
+        }
+
+        processed_entry = {}
+        for field_from, field_to in entry_fields_map.items():
+            val = entry[field_from]
             processed_entry[field_to] = val
         return processed_entry
 
