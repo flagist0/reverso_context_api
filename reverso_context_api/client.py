@@ -6,6 +6,7 @@ from reverso_context_api.session import ReversoSession
 FAVORITES_PAGE_SIZE = 50
 HISTORY_PAGE_SIZE = 50
 
+
 class Client(object):
     def __init__(self, source_lang, target_lang, credentials=None, user_agent=None):
         """
@@ -83,7 +84,7 @@ class Client(object):
         """
         for page in self._history_pager(source_lang, target_lang):
             for entry in page["results"]:
-                yield self._process_history_entry(entry, cleanup)
+                yield self._process_history_entry(entry)
 
     def get_search_suggestions(self, text, source_lang=None, target_lang=None, fuzzy_search=False, cleanup=True):
         """
@@ -217,19 +218,20 @@ class Client(object):
             processed_entry[field_to] = val
         return processed_entry
 
-    def _process_history_entry(self, entry, cleanup):
+    def _process_history_entry(self, entry):
         entry_fields_map = {
             "srcLang": "source_lang",
             "srcText": "source_text",
             "trgLang": "target_lang",
-            "translation1": "translation_1",
-            "translation2": "translation_2"
         }
 
-        processed_entry = {}
+        processed_entry = {
+            "translations": self._extract_history_entry_translations(entry)
+        }
         for field_from, field_to in entry_fields_map.items():
             val = entry[field_from]
             processed_entry[field_to] = val
+
         return processed_entry
 
     @staticmethod
@@ -238,3 +240,13 @@ class Client(object):
         I'm well aware that generally it's a felony, but in this case tags cannot even overlap
         """
         return re.sub(r"<.*?>", "", text)
+
+    @staticmethod
+    def _extract_history_entry_translations(entry):
+        """Translations in history entries are represented as tranlation1: text, translation2: text...
+        Returns list of translation texts in order respecting key's numerical value"""
+        pref_len = len("translation")
+        idx_to_translation = {int(k[pref_len:]): v for k, v in entry.items()
+                              if k.startswith("translation") and v}  # some values are empty
+        translations = [idx_to_translation[idx] for idx in sorted(idx_to_translation.keys())]
+        return translations
