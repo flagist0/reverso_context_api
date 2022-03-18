@@ -60,7 +60,7 @@ class Client(object):
                 # stop the request if there is no available translation sample               
                 # if that is not done, the program will make requests endlessly until
                 # the server throws a 429 exception. 
-                return False
+                break 
             for entry in page["list"]:
                 source_text, translation = entry["s_text"], entry["t_text"]
                 if cleanup:
