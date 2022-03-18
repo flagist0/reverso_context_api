@@ -56,11 +56,7 @@ class Client(object):
          'In order to achieve good consumer protection, international rules are required.')
         """
         for page in self._translations_pager(text, target_text, source_lang, target_lang):
-            if page["list"] == []:
-                # stop the request if there is no available translation sample               
-                # if that is not done, the program will make requests endlessly until
-                # the server throws a 429 exception. 
-                break 
+
             for entry in page["list"]:
                 source_text, translation = entry["s_text"], entry["t_text"]
                 if cleanup:
@@ -124,6 +120,10 @@ class Client(object):
             pages_total = contents["npages"]
             yield contents
             page_num += 1
+
+            # if the page has no examples, or has ran out of them, stop iterating.
+            if contents["list"] == []:
+                break
 
     def _favorites_pager(self, source_lang=None, target_lang=None):
         source_lang = source_lang or self._source_lang
